@@ -10,6 +10,7 @@ defmodule Onvif.Application do
     children = [
       # Starts a worker by calling: Onvif.Worker.start_link(arg)
       # {Onvif.Worker, arg},
+      {Onvif.Discovery, []},
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
