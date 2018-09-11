@@ -28,7 +28,7 @@ defmodule Onvif.Discovery do
         xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery"
         xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing">
       <s:Header>
-        <a:MessageID>uuid:9ff20e28-3f3e-47e9-9545-b1ff2022445e</a:MessageID>
+        <a:MessageID><%= message_id %></a:MessageID>
         <a:To>urn:schemas-xmlsoap-org:ws:2005:04:discovery</a:To>
         <a:Action>http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe</a:Action>
       </s:Header>
@@ -39,7 +39,9 @@ defmodule Onvif.Discovery do
       </s:Body>
     </s:Envelope>
     """
-    send_data(message)
+    message
+    |> EEx.eval_string(message_id: message_id())
+    |> send_data()
   end
 
   # GenServer callbacks
@@ -104,7 +106,7 @@ defmodule Onvif.Discovery do
     Logger.debug("Ignoring #{action}")
   end
 
-  def make_message_id do
+  def message_id do
     "uuid:" <> uuid()
   end
 
