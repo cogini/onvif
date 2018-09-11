@@ -1,5 +1,7 @@
 %{
   "dialyxir": {:hex, :dialyxir, "0.5.1", "b331b091720fd93e878137add264bac4f644e1ddae07a70bf7062c7862c4b952", [:mix], [], "hexpm"},
+  "quickrand": {:hex, :quickrand, "1.7.3", "0e4fb48fac904fe0c6e21d7e8c31a288a0700e1e81a35b38b649fc119079755d", [:rebar3], [], "hexpm"},
   "recon": {:hex, :recon, "2.3.6", "2bcad0cf621fb277cabbb6413159cd3aa30265c2dee42c968697988b30108604", [:rebar3], [], "hexpm"},
   "sweet_xml": {:hex, :sweet_xml, "0.6.5", "dd9cde443212b505d1b5f9758feb2000e66a14d3c449f04c572f3048c66e6697", [:mix], [], "hexpm"},
+  "uuid": {:git, "https://github.com/okeuday/uuid.git", "27219e393d22b11f3e7ac3ebb1a1858e5bab7aef", []},
 }

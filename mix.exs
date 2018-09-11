@@ -33,6 +33,7 @@ defmodule Onvif.MixProject do
       {:dialyxir, "~> 0.5.1", only: [:dev, :test], runtime: false},
       {:recon, "~> 2.3"},
       {:sweet_xml, "~> 0.6.5"},
+      {:uuid, github: "okeuday/uuid", override: true},
       # {:dep_from_hexpm, "~> 0.3.0"},
       # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"},
     ]

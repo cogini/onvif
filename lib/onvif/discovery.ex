@@ -6,10 +6,40 @@ defmodule Onvif.Discovery do
   require Logger
   import SweetXml
 
+  # require Record
+  # Record.defrecord :xmlElement, Record.extract(:xmlElement, from_lib: "xmerl/include/xmerl.hrl")
+  # Record.defrecord :xmlText, Record.extract(:xmlText, from_lib: "xmerl/include/xmerl.hrl")
+  # Record.defrecord :xmlAttribute, Record.extract(:xmlAttribute, from_lib: "xmerl/include/xmerl.hrl")
+
   @spec send_data(iodata) :: :ok | {:error, :not_owner} | {:error, :inet.posix()}
   def send_data(data) do
     {:ok, sock} = :gen_udp.open(0)
     :gen_udp.send(sock, {239, 255, 255, 250}, 3702, data)
+  end
+
+  def probe do
+    message = """
+    <?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+    <s:Envelope
+        xmlns:s="http://www.w3.org/2003/05/soap-envelope"
+        xmlns:sc="http://www.w3.org/2003/05/soap-encoding"
+        xmlns:dn="http://www.onvif.org/ver10/network/wsdl"
+        xmlns:tds="http://www.onvif.org/ver10/device/wsdl"
+        xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery"
+        xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing">
+      <s:Header>
+        <a:MessageID>uuid:9ff20e28-3f3e-47e9-9545-b1ff2022445e</a:MessageID>
+        <a:To>urn:schemas-xmlsoap-org:ws:2005:04:discovery</a:To>
+        <a:Action>http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe</a:Action>
+      </s:Header>
+      <s:Body>
+        <d:Probe>
+          <d:Types>tds:Device</d:Types>
+        </d:Probe>
+      </s:Body>
+    </s:Envelope>
+    """
+    send_data(message)
   end
 
   # GenServer callbacks
@@ -44,7 +74,7 @@ defmodule Onvif.Discovery do
     )
     Logger.debug("header: #{inspect header}")
 
-    handle(header, doc)
+    handle_message(header, doc)
 
     {:noreply, state}
   end
@@ -53,7 +83,7 @@ defmodule Onvif.Discovery do
     {:noreply, state}
   end
 
-  defp handle(%{action: 'http://schemas.xmlsoap.org/ws/2005/04/discovery/Hello'}, doc) do
+  defp handle_message(%{action: 'http://schemas.xmlsoap.org/ws/2005/04/discovery/Hello'}, doc) do
     body = xpath(doc,
       ~x"//s:Envelope/s:Body/d:Hello"
       |> add_namespace("s", "http://www.w3.org/2003/05/soap-envelope")
@@ -70,5 +100,36 @@ defmodule Onvif.Discovery do
     )
     Logger.debug("Hello: #{inspect body}")
   end
+  defp handle_message(%{action: action}, _doc) do
+    Logger.debug("Ignoring #{action}")
+  end
+
+  def make_message_id do
+    "uuid:" <> uuid()
+  end
+
+  @spec init_uuid() :: :uuid.state
+  def init_uuid do
+    mac_address = mac_address()
+    :uuid.new(self(), mac_address: mac_address)
+  end
+
+  @spec uuid() :: binary
+  def uuid() do
+    state = Process.get(:uuid_state) || init_uuid()
+    {uuid, new_state} = :uuid.get_v1(state)
+    Process.put(:uuid_state, new_state)
+    :uuid.uuid_to_string(uuid, :binary_standard)
+  end
+
+  def mac_address do
+    mac_address(Process.get(:mac_address))
+  end
+  def mac_address(nil) do
+    value = :uuid.mac_address()
+    Process.put(:mac_address, value)
+    value
+  end
+  def mac_address(value), do: value
 
 end
