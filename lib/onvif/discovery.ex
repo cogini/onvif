@@ -66,23 +66,14 @@ defmodule Onvif.Discovery do
   def handle_info({:udp, _port, sender_ip, sender_port, data}, state) do
     Logger.debug("Received UDP datagram from #{:inet.ntoa(sender_ip)} #{sender_port} #{inspect data}")
 
-    try do
-      doc = parse(data, namespace_conformant: true, quiet: true)
-      # Logger.debug("doc: #{inspect doc}")
-      header = xpath(doc,
-        ~x"//s:Envelope/s:Header"
-        |> add_namespace("s", "http://www.w3.org/2003/05/soap-envelope")
-        |> add_namespace("a", "http://schemas.xmlsoap.org/ws/2004/08/addressing"),
-        action: ~x"./a:Action/text()",
-        message_id: ~x"./a:MessageID/text()",
-        to: ~x"./a:To/text()"
-      )
-      Logger.debug("header: #{inspect header}")
+    case parse_xml(data) do
+      {:ok, doc} ->
+        header = parse_header(doc)
+        Logger.debug("header: #{inspect header}")
 
-      handle_message(header, doc)
-    catch
-      :exit, e ->
-        Logger.debug("Could not parse XML: #{inspect e}")
+        handle_message(header, doc)
+      {:error, reason} ->
+        Logger.debug("Could not parse XML: #{inspect reason}")
     end
 
     {:noreply, state}
@@ -90,6 +81,30 @@ defmodule Onvif.Discovery do
   def handle_info(event, state) do
     Logger.debug("handle_info: #{inspect event} #{inspect state}")
     {:noreply, state}
+  end
+
+  @spec parse_xml(binary) :: {:ok, term} | {:error, term}
+  def parse_xml(xml) do
+    try do
+      doc = parse(xml, namespace_conformant: true, quiet: true)
+      {:ok, doc}
+    catch
+      :exit, e ->
+        {:error, e}
+    end
+  end
+
+  @spec parse_header(term) :: map
+  def parse_header(doc) do
+    header = xpath(doc,
+      ~x"//s:Envelope/s:Header"
+      |> add_namespace("s", "http://www.w3.org/2003/05/soap-envelope")
+      |> add_namespace("a", "http://schemas.xmlsoap.org/ws/2004/08/addressing"),
+      action: ~x"./a:Action/text()" |> add_namespace("a", "http://schemas.xmlsoap.org/ws/2004/08/addressing"),
+      message_id: ~x"./a:MessageID/text()" |> add_namespace("a", "http://schemas.xmlsoap.org/ws/2004/08/addressing"),
+      to: ~x"./a:To/text()" |> add_namespace("a", "http://schemas.xmlsoap.org/ws/2004/08/addressing")
+    )
+    {:ok, header}
   end
 
   defp handle_message(%{action: 'http://schemas.xmlsoap.org/ws/2005/04/discovery/Hello'}, doc) do
