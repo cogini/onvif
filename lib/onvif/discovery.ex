@@ -5,31 +5,33 @@ defmodule Onvif.Discovery do
 
   require Logger
   import SweetXml
+  require EEx
 
   # require Record
   # Record.defrecord :xmlElement, Record.extract(:xmlElement, from_lib: "xmerl/include/xmerl.hrl")
   # Record.defrecord :xmlText, Record.extract(:xmlText, from_lib: "xmerl/include/xmerl.hrl")
   # Record.defrecord :xmlAttribute, Record.extract(:xmlAttribute, from_lib: "xmerl/include/xmerl.hrl")
 
-  @spec send_data(iodata) :: :ok | {:error, :not_owner} | {:error, :inet.posix()}
-  def send_data(data) do
+  @spec send_multicast(iodata) :: :ok | {:error, :not_owner} | {:error, :inet.posix()}
+  def send_multicast(data) do
     {:ok, sock} = :gen_udp.open(0)
     :gen_udp.send(sock, {239, 255, 255, 250}, 3702, data)
   end
 
+  def send(data) do
+    {:ok, sock} = :gen_udp.open(0)
+    :gen_udp.send(sock, {127, 0, 0, 1}, 3702, data)
+  end
+
   def probe do
-    message = """
-    <?xml version="1.0" encoding="utf-8" standalone="yes" ?>
-    <s:Envelope
-        xmlns:s="http://www.w3.org/2003/05/soap-envelope"
-        xmlns:sc="http://www.w3.org/2003/05/soap-encoding"
-        xmlns:dn="http://www.onvif.org/ver10/network/wsdl"
-        xmlns:tds="http://www.onvif.org/ver10/device/wsdl"
-        xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery"
-        xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing">
+    template = """
+    <?xml version="1.0" encoding="utf-8"?>
+    <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:sc="http://www.w3.org/2003/05/soap-encoding"
+        xmlns:dn="http://www.onvif.org/ver10/network/wsdl" xmlns:tds="http://www.onvif.org/ver10/device/wsdl"
+        xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing">
       <s:Header>
-        <a:MessageID><%= message_id %></a:MessageID>
-        <a:To>urn:schemas-xmlsoap-org:ws:2005:04:discovery</a:To>
+        <a:MessageID>uuid:<%= uuid %></a:MessageID>
+        <a:To s:mustUnderstand="true">urn:schemas-xmlsoap-org:ws:2005:04:discovery</a:To>
         <a:Action>http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe</a:Action>
       </s:Header>
       <s:Body>
@@ -39,9 +41,10 @@ defmodule Onvif.Discovery do
       </s:Body>
     </s:Envelope>
     """
-    message
-    |> EEx.eval_string(message_id: message_id())
-    |> send_data()
+
+    template
+    |> EEx.eval_string(uuid: uuid())
+    |> send_multicast()
   end
 
   # GenServer callbacks
@@ -61,22 +64,26 @@ defmodule Onvif.Discovery do
 
   @spec handle_info(term, map) :: {:noreply, map}
   def handle_info({:udp, _port, sender_ip, sender_port, data}, state) do
-    Logger.debug("Received UDP datagram from #{inspect sender_ip} #{sender_port} #{inspect data}")
+    Logger.debug("Received UDP datagram from #{:inet.ntoa(sender_ip)} #{sender_port} #{inspect data}")
 
-    doc = parse(data, namespace_conformant: true)
-    # Logger.debug("doc: #{inspect doc}")
+    try do
+      doc = parse(data, namespace_conformant: true, quiet: true)
+      # Logger.debug("doc: #{inspect doc}")
+      header = xpath(doc,
+        ~x"//s:Envelope/s:Header"
+        |> add_namespace("s", "http://www.w3.org/2003/05/soap-envelope")
+        |> add_namespace("a", "http://schemas.xmlsoap.org/ws/2004/08/addressing"),
+        action: ~x"./a:Action/text()",
+        message_id: ~x"./a:MessageID/text()",
+        to: ~x"./a:To/text()"
+      )
+      Logger.debug("header: #{inspect header}")
 
-    header = xpath(doc,
-      ~x"//s:Envelope/s:Header"
-      |> add_namespace("s", "http://www.w3.org/2003/05/soap-envelope")
-      |> add_namespace("a", "http://schemas.xmlsoap.org/ws/2004/08/addressing"),
-      action: ~x"./a:Action/text()",
-      message_id: ~x"./a:MessageID/text()",
-      to: ~x"./a:To/text()"
-    )
-    Logger.debug("header: #{inspect header}")
-
-    handle_message(header, doc)
+      handle_message(header, doc)
+    catch
+      :exit, e ->
+        Logger.debug("Could not parse XML: #{inspect e}")
+    end
 
     {:noreply, state}
   end
@@ -107,7 +114,7 @@ defmodule Onvif.Discovery do
   end
 
   def message_id do
-    "uuid:" <> uuid()
+    "urn:uuid:" <> uuid()
   end
 
   @spec init_uuid() :: :uuid.state
