@@ -1,8 +1,8 @@
 defmodule OnvifTest do
   use ExUnit.Case
-  doctest Onvif
+  # doctest Onvif
 
-  test "greets the world" do
-    assert Onvif.hello() == :world
-  end
+  # test "greets the world" do
+  #   assert Onvif.hello() == :world
+  # end
 end

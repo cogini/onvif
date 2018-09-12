@@ -31,16 +31,63 @@ defmodule Onvif.Discovery do
         xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing">
       <s:Header>
         <a:MessageID>uuid:<%= uuid %></a:MessageID>
-        <a:To s:mustUnderstand="true">urn:schemas-xmlsoap-org:ws:2005:04:discovery</a:To>
+        <a:ReplyTo><a:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</a:Address></a:ReplyTo>
+        <a:To>urn:schemas-xmlsoap-org:ws:2005:04:discovery</a:To>
         <a:Action>http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe</a:Action>
       </s:Header>
       <s:Body>
         <d:Probe>
-          <d:Types>tds:Device</d:Types>
+          <d:Types>tds:NetworkVideoTransmitter</d:Types>
         </d:Probe>
       </s:Body>
     </s:Envelope>
     """
+
+    #     <d:Types xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:dp0="http://www.onvif.org/ver10/network/wsdl">dp0:NetworkVideoTransmitter</d:Types>
+    # <d:Types>tds:Device</d:Types>
+
+    # <a:To s:mustUnderstand="true">urn:schemas-xmlsoap-org:ws:2005:04:discovery</a:To>
+
+    # template2 = """
+    # <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing">
+    #   <s:Header>
+    #     <a:Action s:mustUnderstand="1">http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe</a:Action>
+    #     <a:MessageID>uuid:21859bf9-6193-4c8a-ad50-d082e6d296ab</a:MessageID>
+    #     <a:ReplyTo><a:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</a:Address></a:ReplyTo>
+    #     <a:To s:mustUnderstand="1">urn:schemas-xmlsoap-org:ws:2005:04:discovery</a:To>
+    #   </s:Header>
+    #   <s:Body>
+    #     <Probe xmlns="http://schemas.xmlsoap.org/ws/2005/04/discovery">
+    #     <d:Types xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:dp0="http://www.onvif.org/ver10/network/wsdl">dp0:NetworkVideoTransmitter</d:Types>
+    #     </Probe>
+    #   </s:Body>
+    # </s:Envelope>
+    # """
+
+     # SCOPE_NAME = "onvif://www.onvif.org/name/"
+     # String SCOPE_HARDWARE = "onvif://www.onvif.org/hardware/"
+
+    # <?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+    # <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:sc="http://www.w3.org/2003/05/soap-encoding"
+    #   xmlns:dn="http://www.onvif.org/ver10/network/wsdl" xmlns:tds="http://www.onvif.org/ver10/device/wsdl"
+    #   xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing">
+    #   <s:Header>
+    #     <a:MessageID>uuid:7dffd1ac-a95b-4479-ae60-0128450c7104</a:MessageID>
+    #     <a:To>urn:schemas-xmlsoap-org:ws:2005:04:discovery</a:To>
+    #     <a:Action>http://schemas.xmlsoap.org/ws/2005/04/discovery/Hello</a:Action>
+    #   </s:Header>
+    #   <s:Body>
+    #     <d:Hello>
+    #       <a:EndpointReference>
+    #         <a:Address>uuid:503b687a-b9d7-474f-a2d0-a18c8b25a464</a:Address>
+    #       </a:EndpointReference>
+    #     <d:Types>dn:NetworkVideoTransmitter tds:Device</d:Types>
+    #     <d:Scopes>onvif://www.onvif.org/location/country/china onvif://www.onvif.org/name/Dahua onvif://www.onvif.org/hardware/IPC-HFW2228M-I1-V2 onvif://www.onvif.org/Profile/Streaming onvif://www.onvif.org/type/Network_Video_Transmitter onvif://www.onvif.org/extension/unique_identifier</d:Scopes>
+    #     <d:XAddrs>http://192.168.1.45/onvif/device_service</d:XAddrs>
+    #     <d:MetadataVersion>1</d:MetadataVersion>
+    #     </d:Hello>
+    #   </s:Body>
+    # </s:Envelope>
 
     template
     |> EEx.eval_string(uuid: uuid())
@@ -64,11 +111,11 @@ defmodule Onvif.Discovery do
 
   @spec handle_info(term, map) :: {:noreply, map}
   def handle_info({:udp, _port, sender_ip, sender_port, data}, state) do
-    Logger.debug("Received UDP datagram from #{:inet.ntoa(sender_ip)} #{sender_port} #{inspect data}")
+    Logger.debug("UDP datagram from #{:inet.ntoa(sender_ip)}:#{sender_port} #{inspect data}")
 
     case parse_xml(data) do
       {:ok, doc} ->
-        header = parse_header(doc)
+        {:ok, header} = parse_header(doc)
         Logger.debug("header: #{inspect header}")
 
         handle_message(header, doc)
