@@ -14,10 +14,6 @@ defmodule Onvif.Discovery do
 
   @spec send_multicast(iodata) :: :ok | {:error, :not_owner} | {:error, :inet.posix()}
   def send_multicast(data) do
-    # {:ok, sock} = :gen_udp.open(0, broadcast: true, multicast_loop: false, add_membership: {{239, 255, 255, 250}, {0,0,0,0}})
-    # {:ok, sock} = :gen_udp.open(0, broadcast: true, multicast_loop: false)
-    # :ok = :gen_udp.send(sock, address, 3702, data)
-    # :gen_udp.close(sock)
     GenServer.call(__MODULE__, {:send_multicast, data})
   end
 
@@ -114,44 +110,23 @@ defmodule Onvif.Discovery do
     Logger.info("Starting #{__MODULE__} #{inspect config}")
 
     address = {239, 255, 255, 250}
-    # options = [mode: :binary,
-              # reuseaddr: true,
-              # ip: address,
-              # multicast_ttl: 4,
-              # multicast_loop: true,
-              # broadcast: true,
-              # add_membership: {address, {0, 0, 0, 0}},
-              # active: :true]
-    # {:ok, sock} = :gen_udp.open(3702, options)
-
     {:ok, _sock} = :gen_udp.open(3702, [:binary, {:active, true}, {:add_membership, {address, {0,0,0,0}}}])
 
     {:ok, %{}}
   end
 
   def handle_call({:send_multicast, data}, _from, state) do
+    Logger.debug("Sending discovery probe: #{data}")
     {:ok, sock} = :gen_udp.open(0, mode: :binary, active: true, multicast_loop: false)
-
+    Logger.debug("Opened discovery socket #{inspect sock}")
+    Process.send_after(self(), {:close_discovery_socket, sock}, 60_000)
     result = :gen_udp.send(sock, {239, 255, 255, 250}, 3702, data)
-
-    # {:ok, sock} = :gen_udp.open(0, broadcast: true, multicast_loop: false, add_membership: {{239, 255, 255, 250}, {0,0,0,0}})
-    # {:ok, sock} = :gen_udp.open(0, broadcast: true, multicast_loop: false)
-    # :ok = :gen_udp.send(sock, address, 3702, data)
-    # :gen_udp.close(sock)
     {:reply, result, state}
   end
 
   @spec handle_info(term, map) :: {:noreply, map}
-  def handle_info({:udp, _port, sender_ip, sender_port, data}, %{sock: sock} = state) do
+  def handle_info({:udp, _port, sender_ip, sender_port, data}, state) do
     Logger.debug("UDP datagram from #{:inet.ntoa(sender_ip)}:#{sender_port} #{inspect data}")
-
-    :ok = :inet.setopts(sock, active: :once)
-    # case :inet.setopts(sock, active: :once) do
-    #   :ok ->
-    #     {:noreply, handle_packet(ip, in_port_no, packet, state)}
-    #   {:error, reason} ->
-    #     {:stop, reason, state}
-    # end
 
     case parse_xml(data) do
       {:ok, doc} ->
@@ -163,6 +138,11 @@ defmodule Onvif.Discovery do
         Logger.debug("Could not parse XML: #{inspect reason}")
     end
 
+    {:noreply, state}
+  end
+  def handle_info({:close_discovery_socket, sock}, state) do
+    Logger.debug("Closing discovery socket #{inspect sock}")
+    :gen_udp.close(sock)
     {:noreply, state}
   end
   def handle_info(event, state) do
@@ -215,12 +195,6 @@ defmodule Onvif.Discovery do
     Logger.debug("Ignoring #{action}")
   end
 
-  # def terminate(reason, %{sock: sock} = state) do
-  # Logger.debug("terminate #{inspect reason}")
-  # :gen_udp.close(sock)
-  # {:ok, state}
-  # end
-
   def message_id do
     "urn:uuid:" <> uuid()
   end
@@ -248,5 +222,29 @@ defmodule Onvif.Discovery do
     value
   end
   def mac_address(value), do: value
+
+  # :ok = :inet.setopts(sock, active: :once)
+  # case :inet.setopts(sock, active: :once) do
+  #   :ok ->
+  #     {:noreply, handle_packet(ip, in_port_no, packet, state)}
+  #   {:error, reason} ->
+  #     {:stop, reason, state}
+  # end
+
+  # def terminate(reason, %{sock: sock} = state) do
+  # Logger.debug("terminate #{inspect reason}")
+  # :gen_udp.close(sock)
+  # {:ok, state}
+  # end
+
+  # options = [mode: :binary,
+            # reuseaddr: true,
+            # ip: address,
+            # multicast_ttl: 4,
+            # multicast_loop: true,
+            # broadcast: true,
+            # add_membership: {address, {0, 0, 0, 0}},
+            # active: :true]
+  # {:ok, sock} = :gen_udp.open(3702, options)
 
 end
