@@ -105,12 +105,12 @@ defmodule Onvif.Discovery do
     GenServer.start_link(__MODULE__, args, name: __MODULE__)
   end
 
-  def init(config) do
+  def init(_config) do
     Process.flag(:trap_exit, true) # Die gracefully
-    Logger.info("Starting #{__MODULE__} #{inspect config}")
+    Logger.info("Starting #{__MODULE__}")
 
     address = {239, 255, 255, 250}
-    {:ok, _sock} = :gen_udp.open(3702, [:binary, {:active, true}, {:add_membership, {address, {0,0,0,0}}}])
+    {:ok, _sock} = :gen_udp.open(3702, mode: :binary, active: true, add_membership: {address, {0,0,0,0}})
 
     {:ok, %{}}
   end
